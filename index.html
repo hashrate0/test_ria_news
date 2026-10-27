@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>РИА Новости</title>
+</head>
+
+<body>
+
+    <header>
+        <h1>РИА Новости</h1>
+    </header>
+
+    <main>
+        <section>
+            <div>
+                <label for="category-filter">Категория</label>
+                <select id="category-filter"><option value="">Все категории</option></select>
+                <label for="date-from-filter">Дата с (UTC)</label>
+                <input id="date-from-filter" type="date">
+                <label for="date-to-filter">Дата по (UTC)</label>
+                <input id="date-to-filter" type="date">
+                <button id="reset-filters" type="button">Сбросить фильтры</button>
+            </div>
+
+            <div id="news-content"></div>
+            <div id="pagination"></div>
+        </section>
+    </main>
+
+    <footer></footer>
+
+</body>
+
+</html>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+        let currentPage = 1;
+        let totalPages = 0;
+        let requestId = 0;
+        const newsPerPage = 10;
+
+        $('#category-filter, #date-from-filter, #date-to-filter').on('change', function () {
+            loadNews(1);
+        });
+
+        $('#reset-filters').on('click', function () {
+            $('#category-filter').val('');
+            $('#date-from-filter, #date-to-filter').val('');
+            loadNews(1);
+        });
+
+        function loadNews(page) {
+            currentPage = page;
+            const thisRequest = ++requestId;
+            $.ajax({
+                url: 'api/api.php',
+                type: 'GET',
+                dataType: 'json',
+                cache: false,
+                data: {
+                    action: 'getNews',
+                    page: currentPage,
+                    limit: newsPerPage,
+                    category: $('#category-filter').val(),
+                    date_from: $('#date-from-filter').val(),
+                    date_to: $('#date-to-filter').val()
+                },
+                success: function (response) {
+                    if (thisRequest !== requestId) {
+                        return;
+                    }
+                    if (response.success) {
+                        if (!renderCategories(response.categories)) {
+                            loadNews(1);
+                            return;
+                        }
+                        currentPage = response.pagination.page;
+                        totalPages = response.pagination.total_pages;
+                        renderNews(response.news);
+                        renderPagination();
+                    } else {
+                        $('#news-content').text(
+                            response.message || 'Не удалось получить новости.'
+                        );
+                        $('#pagination').empty();
+                    }
+                },
+                error: function () {
+                    if (thisRequest !== requestId) {
+                        return;
+                    }
+                    $('#news-content').text('Ошибка запроса к серверу.');
+                    $('#pagination').empty();
+                }
+            });
+        }
+
+        function renderCategories(categories) {
+            const select = $('#category-filter');
+            const selected = select.val();
+            select.empty().append($('<option></option>').val('').text('Все категории'));
+            categories.forEach(function (category) {
+                select.append($('<option></option>').val(category).text(category));
+            });
+            if (selected && !categories.includes(selected)) {
+                select.val('');
+                return false;
+            }
+            select.val(selected);
+            return true;
+        }
+
+        function renderNews(news) {
+            const container = $('#news-content');
+
+            container.empty();
+
+            if (news.length === 0) {
+                container.text('Новостей нет.');
+                return;
+            }
+
+            news.forEach(function (item) {
+                const article = $('<div></div>');
+
+                const title = $('<a></a>')
+                    .attr('href', item.url)
+                    .attr('target', '_blank')
+                    .attr('rel', 'noopener noreferrer')
+                    .text(item.title);
+
+                const date = $('<p></p>')
+                    .text('Дата публикации: ' + (item.published_at || 'не указана'));
+
+                article.append(title);
+                article.append(date);
+
+                if (item.image_url) {
+                    const image = $('<img>')
+                        .attr('src', item.image_url)
+                        .attr('alt', item.title)
+                        .css({
+                            'max-width': '100%',
+                            'width': '400px',
+                            'height': 'auto',
+                            'display': 'block',
+                            'margin-top': '10px',
+                            'margin-bottom': '10px'
+                        });
+
+                    article.append(image);
+                }
+
+                article.append('<hr>');
+                container.append(article);
+            });
+        }
+
+        function renderPagination() {
+            const container = $('#pagination');
+
+            container.empty();
+
+            if (totalPages <= 1) {
+                return;
+            }
+
+            container.append($('<span></span>').text('Страница ' + currentPage + ' из ' + totalPages + ' '));
+
+            for (let page = Math.max(1, currentPage - 2); page <= Math.min(totalPages, currentPage + 2); page++) {
+                const button = $('<button></button>')
+                    .text(page)
+                    .prop('disabled', page === currentPage)
+                    .on('click', function () {
+                        loadNews(page);
+                    });
+
+                container.append(button);
+            }
+        }
+
+        loadNews(1);
+    });
+</script>

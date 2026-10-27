@@ -1,0 +1,8 @@
+services:
+  memcached:
+    image: memcached:1.6-alpine
+    container_name: ria-news-memcached
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11211:11211"
+    command: ["memcached", "-m", "64", "-vv"]
